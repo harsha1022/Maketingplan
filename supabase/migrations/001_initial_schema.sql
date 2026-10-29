@@ -205,6 +205,7 @@ DECLARE
   v_registration_id    UUID;
   v_attribution_source TEXT := 'direct';
   v_promoter_id        UUID := NULL;
+  v_student_referral_code TEXT;
   v_campaign           campaign_settings%ROWTYPE;
 BEGIN
   -- Fetch campaign settings
@@ -274,9 +275,20 @@ BEGIN
   )
   RETURNING id INTO v_registration_id;
 
+  -- Generate unique personal referral code for the registrant
+  v_student_referral_code := generate_referral_code(UPPER(SUBSTRING(REGEXP_REPLACE(p_full_name, '[^a-zA-Z]', '', 'g') FROM 1 FOR 5)));
+
+  -- Enroll registrant as student promoter so their referral link immediately attributes friends
+  INSERT INTO promoters (
+    display_name, category, college_or_club, contact_email, referral_code, active
+  ) VALUES (
+    TRIM(p_full_name), 'student', TRIM(p_college), v_normalized_email, v_student_referral_code, TRUE
+  );
+
   RETURN jsonb_build_object(
     'success', true,
     'registration_id', v_registration_id,
+    'referral_code', v_student_referral_code,
     'attributed_to', CASE WHEN v_promoter_id IS NOT NULL THEN v_promoter.display_name ELSE NULL END,
     'attribution_source', v_attribution_source
   );

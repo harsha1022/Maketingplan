@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { CheckCircle, Share2, Copy, ExternalLink, Trophy, Info } from 'lucide-react';
 import Navbar from '../components/layout/Navbar';
 import Footer from '../components/layout/Footer';
-import { buildReferralUrl, copyToClipboard, nativeShare } from '../lib/referral';
+import { buildReferralUrl, copyToClipboard, nativeShare, generateStudentReferralCode } from '../lib/referral';
 
 export default function ConfirmationPage() {
   const { state } = useLocation();
@@ -20,13 +20,11 @@ export default function ConfirmationPage() {
   const {
     registrationId, fullName, email, college,
     studyYear, attributedTo, attributionSource, isDemo,
+    referralCode,
   } = state;
 
-  // The share link is just the registration page (no personal code for registrants unless they're also promoters)
-  // For this platform, regular students share the base register URL.
-  const shareUrl = import.meta.env.VITE_APP_URL
-    ? `${import.meta.env.VITE_APP_URL}/register`
-    : `${window.location.origin}/register`;
+  const userReferralCode = referralCode || generateStudentReferralCode(fullName, registrationId);
+  const shareUrl = buildReferralUrl(userReferralCode);
 
   async function handleCopy() {
     const ok = await copyToClipboard(shareUrl);
@@ -40,7 +38,7 @@ export default function ConfirmationPage() {
     const shared = await nativeShare(
       shareUrl,
       'Free AI Workshop — Build Your First AI Project in 60 Minutes',
-      'Register for free! A hands-on online workshop for final-year engineering students.'
+      `Join me for a hands-on AI workshop! Register free with my referral link: ${shareUrl}`
     );
     if (!shared) handleCopy();
   }
@@ -119,6 +117,7 @@ export default function ConfirmationPage() {
                 ['College', college],
                 ['Year', studyYear],
                 ['Referred by', attributedTo || 'Direct registration'],
+                ['Your Referral Code', userReferralCode],
               ].map(([label, value]) => (
                 <div key={label} style={{
                   display:'flex',
@@ -146,11 +145,10 @@ export default function ConfirmationPage() {
             }}>
               <div style={{display:'flex',alignItems:'center',gap:'var(--space-2)',marginBottom:'var(--space-3)'}}>
                 <Trophy size={18} color="var(--color-amber-500)" />
-                <span style={{fontWeight:'var(--fw-semibold)'}}>Know a final-year student?</span>
+                <span style={{fontWeight:'var(--fw-semibold)'}}>Share Your Referral Link</span>
               </div>
               <p style={{fontSize:'var(--text-sm)',color:'rgba(255,255,255,0.7)',marginBottom:'var(--space-4)',lineHeight:1.6}}>
-                Share the workshop with friends. If you're a registered student promoter,
-                use your personal referral link (provided separately by the organizer).
+                Share your personal referral link with classmates. Every friend who registers using your link is tracked toward the student leaderboard and workshop rewards!
               </p>
               <div style={{
                 background:'rgba(255,255,255,0.1)',
@@ -158,10 +156,11 @@ export default function ConfirmationPage() {
                 padding:'var(--space-3)',
                 fontSize:'var(--text-xs)',
                 fontFamily:'monospace',
-                color:'rgba(255,255,255,0.8)',
+                color:'rgba(255,255,255,0.9)',
                 marginBottom:'var(--space-4)',
                 wordBreak:'break-all',
-              }}>
+                border:'1px solid rgba(255,255,255,0.15)',
+              }} id="confirmation-referral-url">
                 {shareUrl}
               </div>
               <div style={{display:'flex',gap:'var(--space-3)',flexWrap:'wrap'}}>
@@ -172,7 +171,7 @@ export default function ConfirmationPage() {
                   style={{background:'rgba(255,255,255,0.15)',color:'white',border:'1px solid rgba(255,255,255,0.2)'}}
                 >
                   <Copy size={14} />
-                  {copied ? 'Copied!' : 'Copy link'}
+                  {copied ? 'Copied referral link!' : 'Copy referral link'}
                 </button>
                 <button
                   onClick={handleShare}
@@ -181,7 +180,7 @@ export default function ConfirmationPage() {
                   style={{background:'var(--color-green-600)',color:'white',border:'none'}}
                 >
                   <Share2 size={14} />
-                  Share
+                  Share referral link
                 </button>
               </div>
             </div>

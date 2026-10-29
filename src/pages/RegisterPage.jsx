@@ -11,11 +11,38 @@ import {
 import {
   captureReferralCode,
   getSessionId,
+  clearReferralCode,
+  generateStudentReferralCode,
 } from '../lib/referral';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 // ── Demo mode local registration simulation ────────────────────
 const DEMO_EMAIL_STORE_KEY = 'cg_demo_registrations';
+const DEMO_PROMOTERS_KEY   = 'cg_demo_promoters';
+
+const PREDEFINED_PROMOTERS = {
+  STUDENT001: { promoter_name: 'Arjun Sharma', category: 'Student' },
+  STUDENT002: { promoter_name: 'Priya Nair', category: 'Student' },
+  STUDENT003: { promoter_name: 'Rahul Verma', category: 'Student' },
+  STUDENT004: { promoter_name: 'Sneha Patel', category: 'Student' },
+  CSECLUB01:  { promoter_name: 'CSE Club CBIT', category: 'Club Convener' },
+  IEEE001:    { promoter_name: 'IEEE Student Chapter VIT', category: 'Club Convener' },
+  ECELL001:   { promoter_name: 'E-Cell MJCET', category: 'Club Convener' },
+  CREATOR01:  { promoter_name: 'TechWithRiya', category: 'Content Creator' },
+  CREATOR02:  { promoter_name: 'CodeWithSam', category: 'Content Creator' },
+};
+
+function resolveDemoPromoter(code) {
+  if (!code) return null;
+  const upper = code.trim().toUpperCase();
+  if (PREDEFINED_PROMOTERS[upper]) return PREDEFINED_PROMOTERS[upper];
+  try {
+    const list = JSON.parse(sessionStorage.getItem(DEMO_PROMOTERS_KEY) || '[]');
+    const found = list.find(p => p.referral_code === upper);
+    if (found) return { promoter_name: found.display_name, category: 'Student' };
+  } catch {}
+  return null;
+}
 
 function getDemoRegistrations() {
   try { return JSON.parse(sessionStorage.getItem(DEMO_EMAIL_STORE_KEY) || '[]'); }
@@ -38,10 +65,27 @@ async function submitRegistrationDemo(values, referralCode) {
     return { success: false, error: 'duplicate_email', message: 'This email address is already registered.' };
   }
   addDemoRegistration(values.email);
+
+  const demoPromoter = resolveDemoPromoter(referralCode);
+  const regId = 'DEMO-' + Math.random().toString(36).slice(2, 10).toUpperCase();
+  const personalReferralCode = generateStudentReferralCode(values.fullName, regId);
+
+  // Store in demo promoters so any subsequent registrations using this referral code resolve correctly
+  try {
+    const list = JSON.parse(sessionStorage.getItem(DEMO_PROMOTERS_KEY) || '[]');
+    list.push({
+      display_name: values.fullName,
+      referral_code: personalReferralCode,
+      college: values.college,
+    });
+    sessionStorage.setItem(DEMO_PROMOTERS_KEY, JSON.stringify(list));
+  } catch {}
+
   return {
     success: true,
-    registration_id: 'DEMO-' + Math.random().toString(36).slice(2, 10).toUpperCase(),
-    attributed_to: referralCode ? 'Demo Promoter' : null,
+    registration_id: regId,
+    referral_code: personalReferralCode,
+    attributed_to: demoPromoter?.promoter_name || (referralCode ? `Referrer (${referralCode})` : null),
     attribution_source: referralCode ? 'student' : 'direct',
   };
 }
@@ -81,13 +125,18 @@ export default function RegisterPage() {
     document.title = 'Register — Campus Growth';
     const code = captureReferralCode();
     setReferralCode(code || '');
-    if (code && isSupabaseConfigured && supabase) {
-      supabase.rpc('log_referral_click', {
-        p_referral_code: code,
-        p_session_id: getSessionId(),
-      }).then(({ data }) => {
-        if (data?.valid) setPromoterInfo(data);
-      });
+    if (code) {
+      const demoInfo = resolveDemoPromoter(code);
+      if (demoInfo) setPromoterInfo(demoInfo);
+
+      if (isSupabaseConfigured && supabase) {
+        supabase.rpc('log_referral_click', {
+          p_referral_code: code,
+          p_session_id: getSessionId(),
+        }).then(({ data }) => {
+          if (data?.valid) setPromoterInfo(data);
+        });
+      }
     }
   }, []);
 
@@ -128,9 +177,12 @@ export default function RegisterPage() {
 
     if (result.success) {
       setStatus('success');
+      const personalReferralCode = result.referral_code || generateStudentReferralCode(values.fullName, result.registration_id);
+      clearReferralCode();
       navigate('/confirmation', {
         state: {
           registrationId: result.registration_id,
+          referralCode: personalReferralCode,
           fullName: values.fullName,
           email: values.email,
           college: values.college,

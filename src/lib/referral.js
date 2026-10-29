@@ -46,11 +46,31 @@ export function clearReferralCode() {
 }
 
 /**
+ * Generate a clean, readable personal referral code for a registrant.
+ * e.g., 'ARJUN8A2F'
+ */
+export function generateStudentReferralCode(fullName, seed) {
+  const firstWordLetters = (fullName || '')
+    .trim()
+    .split(/\s+/)[0]
+    .replace(/[^a-zA-Z]/g, '')
+    .toUpperCase();
+  const prefix = firstWordLetters.length >= 3 ? firstWordLetters.slice(0, 6) : 'STUDENT';
+  const cleanSeed = (seed ? String(seed) : Math.random().toString(36).slice(2, 6))
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase();
+  const suffix = cleanSeed.slice(-4) || '2026';
+  return `${prefix}${suffix}`;
+}
+
+/**
  * Build a shareable referral URL.
  */
 export function buildReferralUrl(referralCode) {
-  const base = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173');
-  return `${base}/register?ref=${encodeURIComponent(referralCode)}`;
+  const base = (typeof window !== 'undefined' && window.location?.origin)
+    ? window.location.origin
+    : (import.meta.env.VITE_APP_URL || 'http://localhost:5173');
+  return `${base}/register?ref=${encodeURIComponent(referralCode || '')}`;
 }
 
 /**

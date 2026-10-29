@@ -25,6 +25,7 @@ import {
   clearReferralCode,
   buildReferralUrl,
   getSessionId,
+  generateStudentReferralCode,
 } from '../../src/lib/referral';
 
 describe('Referral code capture', () => {
@@ -98,5 +99,24 @@ describe('getSessionId', () => {
     const id = getSessionId();
     expect(typeof id).toBe('string');
     expect(id.length).toBeGreaterThan(0);
+  });
+});
+
+describe('generateStudentReferralCode', () => {
+  it('generates a clean uppercase referral code from name and seed', () => {
+    const code = generateStudentReferralCode('Arjun Sharma', 'DEMO-8A2F');
+    expect(code).toBe('ARJUN8A2F');
+  });
+
+  it('handles empty names gracefully with default prefix', () => {
+    const code = generateStudentReferralCode('', '1234');
+    expect(code.startsWith('STUDENT')).toBe(true);
+    expect(code).toContain('1234');
+  });
+
+  it('formats code cleanly for buildReferralUrl', () => {
+    const code = generateStudentReferralCode('Sneha Patel', 'XYZ9');
+    const url = buildReferralUrl(code);
+    expect(url).toContain(`/register?ref=${code}`);
   });
 });
